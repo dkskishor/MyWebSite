@@ -1,0 +1,56 @@
+trigger:
+- main
+
+pool:
+  vmImage: 'ubuntu-latest'
+
+variables:
+  resourceGroup: 'your-resource-group-name'
+  location: 'westeurope'
+  capellaUsername: 'test'
+  capellaPassword: 'Test@1234'
+  API_KEY_ID: 'zYGEuozy2rBPL6WF91FyfGvBnblgqw7F'
+  API_KEY_TOKEN: 'ellHRXVvenkyckJQTDZXRjkxRnlmR3ZCbmJsZ3F3N0Y6a3FXM1NkU1ZtWk1pejM2eEZGSkRMYVNzajU4cnJJMWMwcjNiTUQ3WU1DIUQ4T2ZAWTd5QFJpUmNuazV2Y2ZYVw=='
+
+steps:
+- task: AzureCLI@2
+  inputs:
+    azureSubscription: '<your-azure-subscription-id>'
+    scriptType: 'bash'
+    scriptLocation: 'inlineScript'
+    inlineScript: |
+      echo "Deploying Azure resources (if any)"
+      # If you have a Bicep file and need Azure resources like a VNet, deploy it
+      az deployment group create \
+        --resource-group $(resourceGroup) \
+        --template-file couchbase-infra.bicep \
+        --parameters location=$(location) capellaUsername=$(capellaUsername) capellaPassword=$(capellaPassword)
+      
+- script: |
+    echo "Calling Couchbase Capella API to create the cluster"
+
+    # Define the JSON payload for creating the cluster
+    cat <<EOF > payload.json
+    {
+      "name": "my-capella-cluster",
+      "cloud": {
+        "provider": "azure",
+        "region": "$(location)"
+      },
+      "nodes": {
+        "size": 3,
+        "services": ["data", "index", "query", "eventing", "search"]
+      },
+      "adminUser": {
+        "username": "$(capellaUsername)",
+        "password": "$(capellaPassword)"
+      }
+    }
+    EOF
+
+    # Call the Couchbase Capella API to create the cluster
+    curl -X POST https://cloudapi.cloud.couchbase.com/v2/clusters \
+      -H "Authorization: Bearer $(API_KEY_TOKEN)" \
+      -H "Content-Type: application/json" \
+      -d @payload.json
+  displayName: 'Create Couchbase Capella Cluster'
