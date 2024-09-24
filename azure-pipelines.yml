@@ -1,56 +1,51 @@
 trigger:
-- main
+- main # This will trigger the pipeline on any changes to the 'main' branch
 
 pool:
-  vmImage: 'ubuntu-latest'
+  vmImage: 'ubuntu-latest'  # Using an Ubuntu virtual machine to run the bash script
 
 variables:
-  resourceGroup: 'your-resource-group-name'
-  location: 'westeurope'
-  capellaUsername: 'test'
-  capellaPassword: 'Test@1234'
-  API_KEY_ID: 'zYGEuozy2rBPL6WF91FyfGvBnblgqw7F'
-  API_KEY_TOKEN: 'ellHRXVvenkyckJQTDZXRjkxRnlmR3ZCbmJsZ3F3N0Y6a3FXM1NkU1ZtWk1pejM2eEZGSkRMYVNzajU4cnJJMWMwcjNiTUQ3WU1DIUQ4T2ZAWTd5QFJpUmNuazV2Y2ZYVw=='
+  # Couchbase Capella API details
+  API_KEY_ID: 'zYGEuozy2rBPL6WF91FyfGvBnblgqw7F'  # API Key ID
+  API_KEY_TOKEN: 'ellHRXVvenkyckJQTDZXRjkxRnlmR3ZCbmJsZ3F3N0Y6a3FXM1NkU1ZtWk1pejM2eEZGSkRMYVNzajU4cnJJMWMwcjNiTUQ3WU1DIUQ4T2ZAWTd5QFJpUmNuazV2Y2ZYVw=='  # API Key Token (Use secrets to store this in production)
+  LOCATION: 'westeurope'  # Azure region to deploy the Couchbase cluster
+  CAPELLA_USERNAME: 'test'  # Couchbase Capella admin username
+  CAPELLA_PASSWORD: 'Test@1234'  # Couchbase Capella admin password (Use secrets to store this in production)
 
-steps:
-- task: AzureCLI@2
-  inputs:
-    azureSubscription: '<your-azure-subscription-id>'
-    scriptType: 'bash'
-    scriptLocation: 'inlineScript'
-    inlineScript: |
-      echo "Deploying Azure resources (if any)"
-      # If you have a Bicep file and need Azure resources like a VNet, deploy it
-      az deployment group create \
-        --resource-group $(resourceGroup) \
-        --template-file couchbase-infra.bicep \
-        --parameters location=$(location) capellaUsername=$(capellaUsername) capellaPassword=$(capellaPassword)
-      
-- script: |
-    echo "Calling Couchbase Capella API to create the cluster"
+stages:
+- stage: DeployCapellaCluster
+  displayName: 'Deploy Couchbase Capella Cluster'
+  jobs:
+    - job: CapellaClusterDeployment
+      displayName: 'Create Capella Cluster'
+      steps:
+      - script: |
+          echo "Creating Couchbase Capella cluster using the API..."
 
-    # Define the JSON payload for creating the cluster
-    cat <<EOF > payload.json
-    {
-      "name": "my-capella-cluster",
-      "cloud": {
-        "provider": "azure",
-        "region": "$(location)"
-      },
-      "nodes": {
-        "size": 3,
-        "services": ["data", "index", "query", "eventing", "search"]
-      },
-      "adminUser": {
-        "username": "$(capellaUsername)",
-        "password": "$(capellaPassword)"
-      }
-    }
-    EOF
+          # Define the JSON payload to create the Capella cluster
+          cat <<EOF > payload.json
+          {
+            "name": "my-capella-cluster",
+            "cloud": {
+              "provider": "azure",
+              "region": "$(LOCATION)"
+            },
+            "nodes": {
+              "size": 3,
+              "services": ["data", "index", "query", "eventing", "search"]
+            },
+            "adminUser": {
+              "username": "$(CAPELLA_USERNAME)",
+              "password": "$(CAPELLA_PASSWORD)"
+            }
+          }
+          EOF
 
-    # Call the Couchbase Capella API to create the cluster
-    curl -X POST https://cloudapi.cloud.couchbase.com/v2/clusters \
-      -H "Authorization: Bearer $(API_KEY_TOKEN)" \
-      -H "Content-Type: application/json" \
-      -d @payload.json
-  displayName: 'Create Couchbase Capella Cluster'
+          # Make the API request to Couchbase Capella to create the cluster
+          curl -X POST "https://cloudapi.cloud.couchbase.com/v2/clusters" \
+            -H "Authorization: Bearer $(API_KEY_TOKEN)" \
+            -H "Content-Type: application/json" \
+            -d @payload.json
+
+          echo "Cluster creation request sent to Couchbase Capella API."
+        displayName: 'Call Couchbase Capella API'
