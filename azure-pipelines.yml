@@ -1,51 +1,55 @@
 trigger:
-- main # This will trigger the pipeline on any changes to the 'main' branch
+- main
 
 pool:
-  vmImage: 'ubuntu-latest'  # Using an Ubuntu virtual machine to run the bash script
+  vmImage: 'ubuntu-latest'
 
-variables:
-  # Couchbase Capella API details
-  API_KEY_ID: 'zYGEuozy2rBPL6WF91FyfGvBnblgqw7F'  # API Key ID
-  API_KEY_TOKEN: 'ellHRXVvenkyckJQTDZXRjkxRnlmR3ZCbmJsZ3F3N0Y6a3FXM1NkU1ZtWk1pejM2eEZGSkRMYVNzajU4cnJJMWMwcjNiTUQ3WU1DIUQ4T2ZAWTd5QFJpUmNuazV2Y2ZYVw=='  # API Key Token (Use secrets to store this in production)
-  LOCATION: 'westeurope'  # Azure region to deploy the Couchbase cluster
-  CAPELLA_USERNAME: 'test'  # Couchbase Capella admin username
-  CAPELLA_PASSWORD: 'Test@1234'  # Couchbase Capella admin password (Use secrets to store this in production)
-
-stages:
-- stage: DeployCapellaCluster
-  displayName: 'Deploy Couchbase Capella Cluster'
-  jobs:
-    - job: CapellaClusterDeployment
-      displayName: 'Create Capella Cluster'
-      steps:
-      - script: |
-          echo "Creating Couchbase Capella cluster using the API..."
-
-          # Define the JSON payload to create the Capella cluster
-          cat <<EOF > payload.json
-          {
-            "name": "my-capella-cluster",
-            "cloud": {
-              "provider": "azure",
-              "region": "$(LOCATION)"
-            },
-            "nodes": {
-              "size": 3,
-              "services": ["data", "index", "query", "eventing", "search"]
-            },
-            "adminUser": {
-              "username": "$(CAPELLA_USERNAME)",
-              "password": "$(CAPELLA_PASSWORD)"
+steps:
+- task: AzureCLI@2
+  inputs:
+    azureSubscription: 'AzureServiceConnection' # Replace with your service connection name
+    scriptType: 'bash'
+    scriptLocation: 'inlineScript'
+    inlineScript: |
+      curl -X POST "https://cloudapi.cloud.couchbase.com/v4/organizations/42730eb3-53ab-451a-b5eb-8eeb9a92084c/projects/1f0721f9-6a58-4212-80b9-05d2e6a4d9e7/clusters" \
+        -H "Authorization: Bearer ellHRXVvenkyckJQTDZXRjkxRnlmR3ZCbmJsZ3F3N0Y6a3FXM1NkU1ZtWk1pejM2eEZGSkRMYVNzajU4cnJJMWMwcjNiTUQ3WU1DIUQ4T2ZAWTd5QFJpUmNuazV2Y2ZYVw==" \
+        -H "Content-Type: application/json" \
+        -d '{
+          "name": "Test-Cluster-3",
+          "description": "My first test Azure cluster.",
+          "cloudProvider": {
+            "type": "azure",
+            "region": "westeurope",
+            "cidr": "10.0.32.0/24"
+          },
+          "couchbaseServer": {
+            "version": "7.6"
+          },
+          "serviceGroups": [
+            {
+              "node": {
+                "compute": {
+                  "cpu": 4,
+                  "ram": 16
+                },
+                "disk": {
+                  "type": "P6"
+                }
+              },
+              "numOfNodes": 3,
+              "services": [
+                "data",
+                "query",
+                "index",
+                "search"
+              ]
             }
+          ],
+          "availability": {
+            "type": "single"
+          },
+          "support": {
+            "plan": "developer pro",
+            "timezone": "GMT"
           }
-          EOF
-
-          # Make the API request to Couchbase Capella to create the cluster
-          curl -X POST "https://cloudapi.cloud.couchbase.com/v2/clusters" \
-            -H "Authorization: Bearer $(API_KEY_TOKEN)" \
-            -H "Content-Type: application/json" \
-            -d @payload.json
-
-          echo "Cluster creation request sent to Couchbase Capella API."
-        displayName: 'Call Couchbase Capella API'
+        }'
