@@ -20,7 +20,7 @@ steps:
           "cloudProvider": {
             "type": "azure",
             "region": "westeurope",
-            "cidr": "10.0.32.0/24"
+            "cidr": "10.0.34.0/24"
           },
           "couchbaseServer": {
             "version": "7.6"
